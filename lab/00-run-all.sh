@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -e
+
 export KARPENTER_NAMESPACE="kube-system"
 export KARPENTER_VERSION="1.0.6"
 export K8S_VERSION="1.31"
@@ -18,11 +21,11 @@ sudo dnf install gettext -y
 curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT_DIR}/run-all-cloudformation.yaml" \
 && aws cloudformation deploy \
   --stack-name "Karpenter-${CLUSTER_NAME}" \
-  --template-file "${TEMPOUT_DIR}" \
+  --template-file "${TEMPOUT_DIR}/run-all-cloudformation.yaml" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
 
-eksctl create cluster -f - <<EOF > "${TEMPOUT_DIR}/run-all-config.yaml"
+cat <<EOF > "${TEMPOUT_DIR}/run-all-config.yaml" | envsubst | eksctl create cluster -f -
 ---
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
