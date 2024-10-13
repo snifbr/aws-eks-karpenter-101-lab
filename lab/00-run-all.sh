@@ -1,12 +1,11 @@
 #!/bin/bash
-
 set -e
 
 export KARPENTER_NAMESPACE="kube-system"
 export KARPENTER_VERSION="1.0.6"
 export K8S_VERSION="1.31"
 
-export AWS_PARTITION="aws" # if you are not using standard partitions, you may need to configure to aws-cn / aws-us-gov
+export AWS_PARTITION="aws"
 export CLUSTER_NAME="cluster-with-karpenter"
 export AWS_DEFAULT_REGION="us-east-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -16,8 +15,10 @@ export AMD_AMI_ID="$(aws ssm get-parameter --name /aws/service/eks/optimized-ami
 export GPU_AMI_ID="$(aws ssm get-parameter --name /aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/x86_64/nvidia/recommended/image_id --query Parameter.Value --output text)"
 export ALIAS_AL2023_LATEST="$(aws ssm get-parameters-by-path --path "/aws/service/eks/optimized-ami/${K8S_VERSION}/amazon-linux-2023/" --recursive | jq -cr '.Parameters[].Name' | grep -v "recommended" | awk -F '/' '{print $10}' | sed -r 's/.*(v[[:digit:]]+)$/\1/' | sort | uniq | tail -n1)"
 
+echo "[INFO] Install envsubst."
 sudo dnf install gettext -y
 
+echo "[INFO] Create karpenter pre-requirements."
 curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  > "${TEMPOUT_DIR}/run-all-cloudformation.yaml" \
 && aws cloudformation deploy \
   --stack-name "Karpenter-${CLUSTER_NAME}" \
@@ -25,7 +26,8 @@ curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARP
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
 
-cat <<EOF > "${TEMPOUT_DIR}/run-all-config.yaml" | envsubst | eksctl create cluster -f -
+echo "[INFO] Creating EKS Cluster."
+cat <<EOF > "${TEMPOUT_DIR}/run-all-config.yaml"
 ---
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
@@ -107,6 +109,8 @@ managedNodeGroups:
         effect: NoSchedule
 EOF
 
+eksctl create cluster -f "${TEMPOUT_DIR}/run-all-config.yaml"
+
 export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --query "cluster.endpoint" --output text)"
 export KARPENTER_IAM_ROLE_ARN="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
 
@@ -116,6 +120,7 @@ echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
 # If the role has already been successfully created, you will see:
 # An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
 
+echo "[INFO] Installing karpenter helm chart."
 # Logout of helm registry to perform an unauthenticated pull against the public ECR
 helm registry logout public.ecr.aws
 
@@ -128,7 +133,8 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
   --set controller.resources.limits.memory=1Gi \
   --wait
 
-cat <<EOF > "${TEMPOUT_DIR}/run-all-nodepool.yaml" | envsubst | kubectl apply -f -
+echo "[INFO] Deploying default Nodepool and EC2NodeClaim."
+cat <<EOF > "${TEMPOUT_DIR}/run-all-nodepool.yaml"
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
@@ -187,6 +193,16 @@ spec:
     IntentLabel: apps
 EOF
 
+kubectl apply -f "${TEMPOUT_DIR}/run-all-nodepool.yaml"
+
+echo "[INFO] Track temporary files created."
 echo ""
 echo ${TEMPOUT_DIR}
 ls ${TEMPOUT_DIR}
+
+echo "[INFO] Deploying sample application stack."
+# From: https://github.com/aws-containers/retail-store-sample-app
+kubectl apply -f https://raw.githubusercontent.com/aws-containers/retail-store-sample-app/main/dist/kubernetes/deploy.yaml
+kubectl wait --for=condition=available deployments --all
+
+kubectl get svc ui
