@@ -121,8 +121,11 @@ echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
 # An error occurred (InvalidInput) when calling the CreateServiceLinkedRole operation: Service role name AWSServiceRoleForEC2Spot has been taken in this account, please try a different suffix.
 
 echo "[INFO] Installing karpenter helm chart."
+# create/update .kube/config
+aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${AWS_DEFAULT_REGION}"
+
 # Logout of helm registry to perform an unauthenticated pull against the public ECR
-helm registry logout public.ecr.aws
+helm registry logout public.ecr.aws || true
 
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version "${KARPENTER_VERSION}" --namespace "${KARPENTER_NAMESPACE}" --create-namespace \
   --set "settings.clusterName=${CLUSTER_NAME}" \
