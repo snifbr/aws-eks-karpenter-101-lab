@@ -205,7 +205,11 @@ ls ${TEMPOUT_DIR}
 
 echo "[INFO] Deploying sample application stack."
 # From: https://github.com/aws-containers/retail-store-sample-app
-kubectl apply -f https://raw.githubusercontent.com/aws-containers/retail-store-sample-app/main/dist/kubernetes/deploy.yaml
-kubectl wait --for=condition=available deployments --all
+kubectl apply -f https://raw.githubusercontent.com/aws-containers/retail-store-sample-app/main/dist/kubernetes/deploy.yaml --wait
+while true ; do
+  if kubectl wait --for=condition=available deployments --all ; then
+    break
+  fi
+done
 
 kubectl get svc ui
