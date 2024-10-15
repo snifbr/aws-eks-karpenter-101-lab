@@ -26,6 +26,13 @@ curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARP
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides "ClusterName=${CLUSTER_NAME}"
 
+echo "[INFO] Create aws-load-balancer-controller pre-requirements."
+curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.9.1/docs/install/iam_policy.json -o "${TEMPOUT_DIR}/aws-lb-controller-iam-policy.json"
+aws iam create-policy \
+  --policy-name AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://${TEMPOUT_DIR}/aws-lb-controller-iam-policy.json
+
+
 echo "[INFO] Creating EKS Cluster."
 cat <<EOF > "${TEMPOUT_DIR}/run-all-config.yaml"
 ---
@@ -55,6 +62,11 @@ iam:
     roleName: ${CLUSTER_NAME}-karpenter
     permissionPolicyARNs:
     - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
+  - namespace: kube-system
+    serviceAccountName: aws-load-balancer-controller
+    roleName: AmazonEKSLoadBalancerControllerRole
+    permissionPolicyARNs:
+    - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy
 
 iamIdentityMappings:
 - arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
@@ -205,6 +217,18 @@ echo "[INFO] Track temporary files created."
 echo ""
 echo ${TEMPOUT_DIR}
 ls ${TEMPOUT_DIR}
+
+echo "[INFO] Deploying aws-load-balancer-controller helm."
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --version 1.9.1 \
+  --set clusterName=${CLUSTER_NAME} \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set enableServiceMutatorWebhook=false \
+  --wait
 
 echo "[INFO] Deploying sample application stack."
 # From: https://github.com/aws-containers/retail-store-sample-app
