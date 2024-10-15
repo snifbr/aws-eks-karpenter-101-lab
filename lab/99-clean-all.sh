@@ -16,7 +16,7 @@ kubectl delete -f https://raw.githubusercontent.com/aws-containers/retail-store-
 
 kubectl delete nodepool default --wait
 
-kubectl delete ec2nodeclaim default --wait
+kubectl delete ec2nodeclass default --wait
 
 helm uninstall karpenter --namespace "${KARPENTER_NAMESPACE}" --wait
 
