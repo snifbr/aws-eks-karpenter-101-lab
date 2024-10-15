@@ -30,7 +30,7 @@ echo "[INFO] Create aws-load-balancer-controller pre-requirements."
 curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.9.1/docs/install/iam_policy.json -o "${TEMPOUT_DIR}/aws-lb-controller-iam-policy.json"
 aws iam create-policy \
   --policy-name AWSLoadBalancerControllerIAMPolicy \
-  --policy-document file://${TEMPOUT_DIR}/aws-lb-controller-iam-policy.json
+  --policy-document file://${TEMPOUT_DIR}/aws-lb-controller-iam-policy.json || true
 
 
 echo "[INFO] Creating EKS Cluster."
