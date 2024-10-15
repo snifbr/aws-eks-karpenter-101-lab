@@ -29,10 +29,10 @@ _header: 'Introdução'
 
 # **Quem sou eu**
 
-- Um apaixonado por tecnologia e jogos desde que me conheço por gente.
+- Um apaixonado por tecnologia, jogos e mangás desde que me conheço por gente.
 - Esposo da Márcia.
-- Meio mineiro, meio interior-paulista.
-- Meio bicho do mato.
+- Meio mineiro, meio paulista do interior.
+- Desde 2002 no mercado de TI.
 - E muito grato as iniciativas open source e ao projeto do linux.
 
 ---
@@ -168,7 +168,7 @@ _header: 'Instalação'
 ```bash
 echo "[INFO] Create karpenter pre-requirements."
 curl -fsSL \
-  https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml  \
+  https://raw.githubusercontent.com/.../v"${KARPENTER_VERSION}"/.../getting-started/ getting-started-with-karpenter/cloudformation.yaml  \
   > "${TEMPOUT_DIR}/run-all-cloudformation.yaml" \
 && aws cloudformation deploy \
   --stack-name "Karpenter-${CLUSTER_NAME}" \
@@ -205,7 +205,18 @@ vpc:
 availabilityZones:
 - us-east-1a
 - us-east-1c
+...
+```
 
+---
+<!--
+_header: 'Instalação'
+-->
+
+## **Instalação do Karpenter**
+
+```bash
+...
 iam:
   withOIDC: true
   podIdentityAssociations:
@@ -259,7 +270,18 @@ addons:
     }
   resolveConflicts: overwrite
   version: latest
+...
+```
 
+---
+<!--
+_header: 'Instalação'
+-->
+
+## **Instalação do Karpenter**
+
+```bash
+...
 managedNodeGroups:
   - name: critical-addons-only
     amiFamily: AmazonLinux2023
@@ -297,7 +319,11 @@ aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${AWS_DEFAULT_REGIO
 # Logout of helm registry to perform an unauthenticated pull against the public ECR
 helm registry logout public.ecr.aws || true
 
-helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version "${KARPENTER_VERSION}" --namespace "${KARPENTER_NAMESPACE}" --create-namespace \
+helm upgrade \
+  --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version "${KARPENTER_VERSION}" \
+  --namespace "${KARPENTER_NAMESPACE}" \
+  --create-namespace \
   --set "settings.clusterName=${CLUSTER_NAME}" \
   --set "settings.interruptionQueue=${CLUSTER_NAME}" \
   --set controller.resources.requests.cpu=1 \
@@ -423,23 +449,115 @@ _class: lead
 ---
 <!--
 _header: 'Configuração'
+_class: conf
+style: |
+  section.conf p,ul,ol {
+    font-size: 26px;
+  }
 -->
 
-**Configuração de EC2NodeClass**: Explicar como configurar EC2NodeClass.
+## **Explicando o NodePool**
+
+O *CustomResource* ***NodePool*** é o que vai configurar como o Karpenter vai provisionar/escalar um novo *worker node* caso não haja recursos para um determinado pod. Em nosso lab já configuramos por padrão um *NodePool* default que pode ser visto com o comando abaixo:
+
+```bash
+kubectl get NodePool default -o yaml
+```
+
+Se ele ainda estiver usando os valores padrões do lab ele será um NodePool que ira buscar a instância EC2 mais barata de geração 2 ou superior, que não sejam nano, micro ou small, do tipo SPOT, que usem linux e seja da arquitetura amd64 que se encaixar com a necessidade de carga apresentada para o kubernetes.
+
+---
+<!--
+_header: 'Configuração'
+_class: conf
+-->
+
+## **Explicando o processo de Scheduling**
+
+Se os seus pods não tem requerimentos de como ou onde rodar, você pode deixar o Karpenter escolher os workers nodes da lista completa de recursos descrito no _NodePool_. Entretanto, podemos tirar vantagens do modelo de restrições em camadas do Karpenter, assim você pode ter certeza que precisamente o tipo e quantidade de recursos necessários estarão disponíveis para seus pods.
+
+Podemos elencar alguns motivos para usar restrições ao subir um determinado pod:
+
+- Necessidade de executar em zonas de disponibilidade específicas por conta de recursos específicos ou por conta de Storage persistente.
+- Necessidade de usar certos tipos específicos de processadores ou outros hardwares.
+- Desejo de usar técnicas como topologySpread para ajudar a garantir alta disponbilidade.
+
+
+---
+<!--
+_header: 'Configuração'
+_class: conf
+-->
+
+## **Explicando o processo de Scheduling**
+
+
+E podemos usar esses tipos de restrições em pods que serão interpretáveis pelo Karpenter:
+
+- **Resource requests**: Solicite que uma certa quantidade de memória ou CPU esteja disponível.
+- **Node selection**: Escolha executar em um Node que tenha uma label específica (`nodeSelector`).
+- **Node affinity**: Atrai um pod para executar em Nodes com atributos específicos (`affinity`).
+- **Topology spread**: Use a distribuição de topologia para ajudar a garantir a disponibilidade da aplicação.
+- **Pod affinity/anti-affinity**: Atrai pods ou afasta pods de regras de topologia com base na configuração de outros pods.
 
 ---
 <!--
 _header: 'Configuração'
 -->
 
-**Configuração de NodePools**: Explicar como configurar NodePools para definir restrições e valores de expiração de nós.
+## **Scheduling: Restrições complementares**
+
+![h:580](scheduling-01.png)
 
 ---
 <!--
 _header: 'Configuração'
 -->
 
-**Exemplos Práticos**: Mostrar exemplos de configurações de NodePools.
+## **Scheduling: Restrições de negação**
+
+![h:580](scheduling-02.png)
+
+---
+<!--
+_header: 'Configuração'
+-->
+
+# **Explicando o EC2NodeClass**
+
+***EC2NodeClasses*** habilitam a configuração de parâmetros dos ***EC2 Nodes*** específicos da AWS. Cada ***NodePool*** referência um ***EC2NodeClass*** e múltiplos ***NodePools*** podem apontar para o mesmo ***EC2NodeClass***.
+
+---
+<!--
+_header: 'Configuração'
+-->
+
+## **Explicando o EC2NodeClass**
+
+As configurações mais notáveis são:
+- **customizar o kubelet**.
+- **Seletor de AMI**
+- **seletor de Subnet**
+- **Seletor de IAM Role para os Nodes**
+- **Seletor de SecurityGroups**
+- **customizar o IMDS**
+- **customizar o blockDeviceMappings**
+- **customizar o userData**
+- **habilitar o Monitoramento Detalhado do Node**
+- **habilitar a associação de IP Público ao Node**
+- **configuração de Tags dos Nodes**.
+
+---
+<!--
+_header: 'Configuração'
+-->
+
+# **Exemplos Práticos**
+
+https://github.com/aws-samples/karpenter-blueprints?tab=readme-ov-file#deploying-a-blueprint
+
+- Split Ratio On-demand/Spot: https://github.com/aws-samples/karpenter-blueprints/blob/main/blueprints/od-spot-split
+- Trabalhando com instâncias ARM64: https://github.com/aws-samples/karpenter-blueprints/blob/main/blueprints/graviton
 
 ---
 <!--
@@ -453,32 +571,65 @@ _class: lead
 _header: 'Uso'
 -->
 
-**Benefícios do Karpenter**: Explicar como o Karpenter melhora a eficiência e reduz os custos de execução de cargas de trabalho no cluster.
+# **eks-node-viewer**
+
+Mostrar como usar o eks-node-viewer e escalar o aws-sample-application ou o inflate.
 
 ---
 <!--
 _header: 'Uso'
 -->
 
-**Casos de Uso**: Exemplos de cenários onde o Karpenter pode ser útil.
+# **Grafana Dashboard**
+
+Mostrar os dashboard do Grafana.
+
+---
+<!--
+_header: 'Uso'
+-->
+
+# **Cost-Explorer: Antes/Depois**
+
+![w:1000](cost-explorer-01.png)
+
+---
+<!--
+_header: 'Uso'
+-->
+
+# **Cost-Explorer: Antes/Depois**
+
+![w:700](cost-explorer-02.png)
+
+---
+<!--
+_header: 'Uso'
+-->
+
+# **Casos de Uso**
+
+- Cenários centrados na aplicação.
+- Isolamento de Nodes em um cluster EKS compartilhado.
+- etc
 
 ---
 <!--
 _class: lead
 -->
 
-# **6. Conclusão e Perguntas**
+# **6. Encerramento**
 
 ---
 <!--
-_header: 'Conclusão'
+_header: 'Agradecimentos'
 -->
 
-**Resumo**: Recapitulação dos pontos principais da apresentação.
+# **Muito Obrigado!**
 
 ---
 <!--
 _header: 'Perguntas'
 -->
 
-**Perguntas e Respostas**: Abrir espaço para perguntas da audiência.
+# **Perguntas e Respostas**
