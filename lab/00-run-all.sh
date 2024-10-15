@@ -149,6 +149,9 @@ spec:
         intent: apps
     spec:
       requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
         - key: kubernetes.io/os
           operator: In
           values: ["linux"]
