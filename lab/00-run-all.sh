@@ -218,17 +218,18 @@ echo ""
 echo ${TEMPOUT_DIR}
 ls ${TEMPOUT_DIR}
 
-echo "[INFO] Deploying aws-load-balancer-controller helm."
-helm repo add eks https://aws.github.io/eks-charts
-helm repo update
-helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --version 1.9.1 \
-  --set clusterName=${CLUSTER_NAME} \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller \
-  --set enableServiceMutatorWebhook=false \
-  --wait
+## Temporarily commented out until you fix the unattended installation
+#echo "[INFO] Deploying aws-load-balancer-controller helm."
+#helm repo add eks https://aws.github.io/eks-charts
+#helm repo update
+#helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+#  -n kube-system \
+#  --version 1.9.1 \
+#  --set clusterName=${CLUSTER_NAME} \
+#  --set serviceAccount.create=false \
+#  --set serviceAccount.name=aws-load-balancer-controller \
+#  --set enableServiceMutatorWebhook=false \
+#  --wait
 
 echo "[INFO] Deploying sample application stack."
 # From: https://github.com/aws-containers/retail-store-sample-app
