@@ -146,6 +146,7 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --vers
   --set controller.resources.requests.memory=1Gi \
   --set controller.resources.limits.cpu=1 \
   --set controller.resources.limits.memory=1Gi \
+  --set featureGates.spotToSpotConsolidation=true \
   --wait
 
 echo "[INFO] Deploying default Nodepool and EC2NodeClaim."
